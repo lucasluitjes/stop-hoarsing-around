@@ -1,0 +1,5 @@
+dataset/relaxed/*
+dataset/tense/*
+normalised-dataset/relaxed/*
+normalised-dataset/tense/*
+*.wav
