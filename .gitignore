@@ -1,5 +1,9 @@
+processing/*
+recordings/*
+spectrograms/*
 dataset/relaxed/*
 dataset/tense/*
 normalised-dataset/relaxed/*
 normalised-dataset/tense/*
 *.wav
+log.txt
