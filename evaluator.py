@@ -16,10 +16,15 @@ for line in sys.stdin:
         break
     path = Path(line.rstrip())
 
+    print(path)
+    print(imghdr.what(path))
+    
     if path.exists() and imghdr.what(path) == 'png':
+        print("test")
         png_path = path
         prediction = learn_inf.predict(png_path)
-        print(f'{prediction[0]} - {png_path}\n')
+        print(prediction[0])
+        #  print(f'{prediction[0]} - {png_path}\n')
     # testing:
     # normalised-dataset/tense/part1073.png
     # normalised-dataset/relaxed/part895.png

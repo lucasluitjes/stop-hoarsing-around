@@ -1,6 +1,7 @@
 require 'fileutils'
 require 'rb-inotify'
 require 'pry'
+require 'open3'
 
 # TODO: rechter reepje ook van spectrograms afhalen tijdens croppen?
 
@@ -25,7 +26,7 @@ wav_queue_thread = Thread.new {
 	notifier.watch("./recordings", :create) do |event|
 		filename = event.absolute_name.delete_prefix("./recordings/")
 
-    puts "File created: #{filename}"
+    # puts "File created: #{filename}"
   	log_manager.synchronize {
   		timestamp = Time.now.strftime("%Y-%m-%d %k:%M:%S.%L")
   		File.open('log.txt', 'a') { |f|
@@ -50,7 +51,7 @@ wav_processing_thread = Thread.new {
 					split_file = wav_queue.pop
 					timestamp  = Time.now.strftime("%Y-%m-%d %k:%M:%S.%L")
 
-					puts "Wav queue full: dropping #{split_file}"
+					# puts "Wav queue full: dropping #{split_file}"
 
 		    	log_manager.synchronize {
 						File.open('log.txt', 'a') { |f|
@@ -92,13 +93,14 @@ wav_processing_thread = Thread.new {
 }
 
 spectrogram_processing_thread = Thread.new {
+	# evaluator hier omheen zetten
 	loop do
 		sleep 0.05
 		spectrogram_queue_manager.synchronize {
 			if spectrogram_queue.length > 10
 				spectrogram = spectrogram_queue.pop
 
-				puts "Spectrogram queue full: dropping #{spectrogram}"
+				# puts "Spectrogram queue full: dropping #{spectrogram}"
 				timestamp = Time.now.strftime("%Y-%m-%d %k:%M:%S.%L")
 	    	log_manager.synchronize {
 					File.open('log.txt', 'a') { |f|
@@ -106,6 +108,22 @@ spectrogram_processing_thread = Thread.new {
 					}
 				}
 				FileUtils.rm "spectrograms/#{spectrogram}"	
+			elsif spectrogram_queue.length > 0
+				# evt spectrogram_path en evaluation gekoppeld houden en opslaan voor debuggen?
+				spectrogram = spectrogram_queue.pop
+				cmd = "python3 evaluator.py"
+				spectrogram_path = "spectrograms/#{spectrogram}"
+
+				evaluation = Open3.capture3(cmd, stdin_data: spectrogram_path) do |stdin, stdout, _stderr, wait_thr|
+				  pid = wait_thr.pid # pid of the started process.
+				  # loop van processing thread hierin laten lopen.
+				  # steeds een spectrogram meegeven met stdin.puts spectrogram_path
+				  # output telkens lezen met stdout.gets, de evaluation = en p evaluation_result zijn dan niet meer nodig
+				  exit_status = wait_thr.value # Process::Status object returned.
+				end
+
+				evaluation_result = evaluation[0].delete_suffix("\n\n\nExcitedly exiting evaluator\n").split("\r")[1]
+				p evaluation_result
 			end
 		}
 	end
