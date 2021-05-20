@@ -92,48 +92,47 @@ wav_processing_thread = Thread.new {
 	end
 }
 
-spectrogram_processing_thread = Thread.new {
-	# evaluator hier omheen zetten
+
+cmd = "python3 evaluator.py"
+Open3.popen3(cmd) do |stdin, stdout, _stderr, wait_thr|
+	pid = wait_thr.pid # pid of the started process.
 	loop do
 		sleep 0.05
 		spectrogram_queue_manager.synchronize {
 			if spectrogram_queue.length > 10
-				spectrogram = spectrogram_queue.pop
+				while spectrogram_queue.length > 2
+					spectrogram = spectrogram_queue.pop
 
-				# puts "Spectrogram queue full: dropping #{spectrogram}"
-				timestamp = Time.now.strftime("%Y-%m-%d %k:%M:%S.%L")
-	    	log_manager.synchronize {
-					File.open('log.txt', 'a') { |f|
-					  f.puts "[#{timestamp}] Spectrogram queue full: dropping #{spectrogram}"
+					# puts "Spectrogram queue full: dropping #{spectrogram}"
+					timestamp = Time.now.strftime("%Y-%m-%d %k:%M:%S.%L")
+		    	log_manager.synchronize {
+						File.open('log.txt', 'a') { |f|
+						  f.puts "[#{timestamp}] Spectrogram queue full: dropping #{spectrogram}"
+						}
 					}
-				}
-				FileUtils.rm "spectrograms/#{spectrogram}"	
+					FileUtils.rm "spectrograms/#{spectrogram}"	
+				end
 			elsif spectrogram_queue.length > 0
 				# evt spectrogram_path en evaluation gekoppeld houden en opslaan voor debuggen?
+
 				spectrogram = spectrogram_queue.pop
-				cmd = "python3 evaluator.py"
 				spectrogram_path = "spectrograms/#{spectrogram}"
 
-				evaluation = Open3.capture3(cmd, stdin_data: spectrogram_path) do |stdin, stdout, _stderr, wait_thr|
-				  pid = wait_thr.pid # pid of the started process.
-				  # loop van processing thread hierin laten lopen.
-				  # steeds een spectrogram meegeven met stdin.puts spectrogram_path
-				  # output telkens lezen met stdout.gets, de evaluation = en p evaluation_result zijn dan niet meer nodig
-				  exit_status = wait_thr.value # Process::Status object returned.
-				end
-
-				evaluation_result = evaluation[0].delete_suffix("\n\n\nExcitedly exiting evaluator\n").split("\r")[1]
-				p evaluation_result
+				stdin.puts spectrogram_path
+				stdout.gets
+				p "#{spectrogram}: #{stdout.gets}"
+				# Geeft error: stop_hoarsing_around.rb:124:in `write': Broken pipe (Errno::EPIPE)
+				# FileUtils.rm "spectrograms/#{spectrogram}"
 			end
 		}
 	end
-}
+	exit_status = wait_thr.value # Process::Status object returned.
+end
 
 at_exit do
 	`kill #{$live_recording}`
 end
 
-spectrogram_processing_thread.join
 wav_processing_thread.join
 wav_queue_thread.join
 recording_thread.join
