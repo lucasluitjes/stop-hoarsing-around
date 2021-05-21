@@ -3,7 +3,6 @@ require 'rb-inotify'
 require 'pry'
 require 'open3'
 
-# TODO: rechter reepje ook van spectrograms afhalen tijdens croppen?
 
 wav_queue 					= []
 spectrogram_queue 	= []
@@ -18,6 +17,7 @@ folders.each do |dir|
 end
 
 recording_thread = Thread.new {
+	sleep 2
 	$live_recording = spawn("rec recordings/%n.wav -q trim 0 0.1 : newfile : restart")
 }
 
@@ -42,7 +42,7 @@ wav_queue_thread = Thread.new {
 }
 
 wav_processing_thread = Thread.new {
-	sleep 0.5
+	sleep 2.2
 	loop do
 		sleep 0.05
 		wav_queue_manager.synchronize {
@@ -92,10 +92,14 @@ wav_processing_thread = Thread.new {
 	end
 }
 
+at_exit do
+	`kill #{$live_recording}`
+end
 
 cmd = "python3 evaluator.py"
 Open3.popen3(cmd) do |stdin, stdout, _stderr, wait_thr|
 	pid = wait_thr.pid # pid of the started process.
+	stdin.sync = true
 	loop do
 		sleep 0.05
 		spectrogram_queue_manager.synchronize {
@@ -114,24 +118,22 @@ Open3.popen3(cmd) do |stdin, stdout, _stderr, wait_thr|
 				end
 			elsif spectrogram_queue.length > 0
 				# evt spectrogram_path en evaluation gekoppeld houden en opslaan voor debuggen?
-
 				spectrogram = spectrogram_queue.pop
 				spectrogram_path = "spectrograms/#{spectrogram}"
 
 				stdin.puts spectrogram_path
-				stdout.gets
-				p "#{spectrogram}: #{stdout.gets}"
-				# Geeft error: stop_hoarsing_around.rb:124:in `write': Broken pipe (Errno::EPIPE)
-				# FileUtils.rm "spectrograms/#{spectrogram}"
+				# alleen output printen als confidence for either relaxed or tense > 0.92 en van
+				# de lage < 0.2 oid en zorgen dat dit makkelijk te tweaken is.
+				evaluation =  stdout.gets.strip.split("\r").last.split(",")
+				p "#{spectrogram}: #{evaluation}"
+
+				FileUtils.rm "spectrograms/#{spectrogram}"
 			end
 		}
 	end
 	exit_status = wait_thr.value # Process::Status object returned.
 end
 
-at_exit do
-	`kill #{$live_recording}`
-end
 
 wav_processing_thread.join
 wav_queue_thread.join
