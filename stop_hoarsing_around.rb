@@ -70,24 +70,28 @@ wav_processing_thread = Thread.new {
 
 				FileUtils.mv "recordings/#{split_file}", "processing/"
 
-			  # Normalize splits
-		  	`sox --norm=-3 processing/#{split_file} processing/#{normalized_split}`
-		  	FileUtils.rm "processing/#{split_file}"
+				amplitude = `sox processing/#{split_file} -n stat 2>&1 | grep "Maximum amplitude"`.scan(/\d+\.\d+/).flatten.first.to_f * 1000.to_i
+		  	# puts amplitude
 
-		 		# Remove silent splits and convert remaining splits to spectrograms
-		  	amplitude = `sox processing/#{normalized_split} -n stat 2>&1 | grep "Maximum amplitude"`.scan(/\d+\.\d+/).flatten.first.to_f * 1000.to_i
-		  	if amplitude < 50
-			  	FileUtils.rm "processing/#{normalized_split}"
-			  else
+		 		# Remove silent splits
+  	  	if amplitude < 5
+  	  		# puts "Low amplitude (#{amplitude}): removing #{normalized_split}"
+  		  	FileUtils.rm "processing/#{split_file}"
+  		  else
+  		  	 # Normalize remaining splits
+			  	`sox --norm=-3 processing/#{split_file} processing/#{normalized_split}`
+			  	FileUtils.rm "processing/#{split_file}"
+
+			  	# Convert splits to spectrograms
 			  	`sox processing/#{normalized_split} -n spectrogram -m -o spectrograms/#{spectrogram}`
-			  	FileUtils.rm "processing/#{normalized_split}"
-			  	
+				  FileUtils.rm "processing/#{normalized_split}"
+
 				  # Crop spectrograms and place them in a queue
 					`mogrify -crop 550x138+58+150 spectrograms/#{spectrogram}`
 					spectrogram_queue_manager.synchronize {
 						spectrogram_queue.unshift(spectrogram)
 					}
-			  end
+  		  end
 			end
 		}
 	end
@@ -136,10 +140,10 @@ Open3.popen3(cmd) do |stdin, stdout, _stderr, wait_thr|
 
 				if result == "relaxed" && confidence_relaxed > 0.85 && confidence_tense < 0.2
 					results << "relaxed"
-					puts "confident relaxed spectrogram found: #{spectrogram}"
+					puts "Confident relaxed spectrogram found: #{spectrogram} - relaxed: #{confidence_relaxed}, tense: #{confidence_tense}"
 				elsif result == "tense" && confidence_tense > 0.85 && confidence_relaxed < 0.2
 					results << "tense"
-					puts "confident tense spectrogram found: #{spectrogram}"
+					puts "Confident tense spectrogram found: #{spectrogram} - tense #{confidence_tense}, relaxed: #{confidence_relaxed}"
 				end
 
 				if results.length >= 100
@@ -155,9 +159,9 @@ Open3.popen3(cmd) do |stdin, stdout, _stderr, wait_thr|
 
 					# TODO: implement xmessage pop-up
 					if final_result >= tense_percentage
-						puts "omg straining!"
+						puts "Omg straining!"
 					else
-						puts "no straining!"
+						puts "No straining!"
 					end
 				end
 			end
