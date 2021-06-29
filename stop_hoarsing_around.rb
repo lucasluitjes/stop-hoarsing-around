@@ -3,9 +3,10 @@ require 'rb-inotify'
 require 'pry'
 require 'open3'
 
-
 wav_queue 					= []
+results							= []
 spectrogram_queue 	= []
+tense_percentage		= 50
 log_manager					= Mutex.new
 wav_queue_manager 	= Mutex.new
 spectrogram_queue_manager = Mutex.new
@@ -98,7 +99,7 @@ end
 
 cmd = "python3 evaluator.py"
 Open3.popen3(cmd) do |stdin, stdout, _stderr, wait_thr|
-	pid = wait_thr.pid # pid of the started process.
+	pid = wait_thr.pid
 	stdin.sync = true
 	loop do
 		sleep 0.05
@@ -118,22 +119,52 @@ Open3.popen3(cmd) do |stdin, stdout, _stderr, wait_thr|
 				end
 			elsif spectrogram_queue.length > 0
 				# evt spectrogram_path en evaluation gekoppeld houden en opslaan voor debuggen?
-				spectrogram = spectrogram_queue.pop
+				spectrogram      = spectrogram_queue.pop
 				spectrogram_path = "spectrograms/#{spectrogram}"
 
 				stdin.puts spectrogram_path
-				# alleen output printen als confidence for either relaxed or tense > 0.92 en van
-				# de lage < 0.2 oid en zorgen dat dit makkelijk te tweaken is.
-				evaluation =  stdout.gets.strip.split("\r").last.split(",")
-				p "#{spectrogram}: #{evaluation}"
+
+				evaluator_output = stdout.gets.strip.split("\r").last.split(",")
+
+				# p "#{spectrogram}: #{evaluator_output}"
+
+				result = evaluator_output[0]
+				confidence_relaxed = evaluator_output[1].to_f
+				confidence_tense	 = evaluator_output[2].to_f 
 
 				FileUtils.rm "spectrograms/#{spectrogram}"
+
+				if result == "relaxed" && confidence_relaxed > 0.85 && confidence_tense < 0.2
+					results << "relaxed"
+					puts "confident relaxed spectrogram found: #{spectrogram}"
+				elsif result == "tense" && confidence_tense > 0.85 && confidence_relaxed < 0.2
+					results << "tense"
+					puts "confident tense spectrogram found: #{spectrogram}"
+				end
+
+				if results.length >= 100
+					if results.length > 100
+						results.shift(results.length - 10)
+					end
+
+					total_results = results.length.to_f
+					tense_results = results.count("tense")
+					final_result  = (tense_results / total_results).truncate(2) * 100
+
+					puts "final result = #{final_result}"
+
+					# TODO: implement xmessage pop-up
+					if final_result >= tense_percentage
+						puts "omg straining!"
+					else
+						puts "no straining!"
+					end
+				end
 			end
 		}
 	end
-	exit_status = wait_thr.value # Process::Status object returned.
+	exit_status = wait_thr.value
 end
-
 
 wav_processing_thread.join
 wav_queue_thread.join
