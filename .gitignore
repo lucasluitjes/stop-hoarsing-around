@@ -1,6 +1,5 @@
 processing/*
 recordings/*
-popen-test/*
 spectrograms/*
 dataset/relaxed/*
 dataset/tense/*
@@ -8,4 +7,3 @@ normalised-dataset/relaxed/*
 normalised-dataset/tense/*
 *.wav
 log.txt
-popen.rb
