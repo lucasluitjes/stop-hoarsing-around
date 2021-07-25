@@ -115,7 +115,7 @@ Open3.popen3(cmd) do |stdin, stdout, _stderr, wait_thr|
 				while spectrogram_queue.length > 2
 					spectrogram = spectrogram_queue.pop
 
-					# puts "Spectrogram queue full: dropping #{spectrogram}"
+					puts "Spectrogram queue full: dropping #{spectrogram}"
 					message = "Spectrogram queue full: dropping #{spectrogram}"
 			  	log_event(message)
 
@@ -163,11 +163,10 @@ Open3.popen3(cmd) do |stdin, stdout, _stderr, wait_thr|
 						message = "Warning sent, #{current_tense_percentage}\% of last #{test_group_size} spectrograms are tense."
 				  	log_event(message)
 
-						alert_pid = Process.fork do
+						alert_pid = Thread.new do
 							`paplay --volume 30000 ./sounds/notify.wav`
 							`xmessage -center -timeout 3 You are straining your voice! Take a break.`
 						end
-				    Process.detach(alert_pid)
 
 						@warning_given = true
 						@last_warning  = Time.now.to_i

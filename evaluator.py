@@ -25,6 +25,7 @@ for line in sys.stdin:
         png_path = path
         prediction = learn_inf.predict(png_path)
         # print(f'{prediction[0]}: r-confid: {prediction[2][0].item()} - t-confid:{prediction[2][1].item()}', flush=True)
+        # print(f'{prediction[0]},{prediction[2][0].item()},{prediction[2][1].item()}', flush=True)
         print(f'{prediction[0]},{prediction[2][0].item()},{prediction[2][1].item()}', flush=True)
         # print([prediction[0], prediction[2][0].item(), prediction[2][1].item()], flush=True)
         # pdb.set_trace()
